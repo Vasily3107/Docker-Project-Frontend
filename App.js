@@ -34,7 +34,8 @@ const styles = StyleSheet.create({
     },
     centeredList: {
         flexGrow: 1,
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        alignSelf: 'center'
     },
 });
 
@@ -65,7 +66,7 @@ const ImageButton = (props) => {
 const Button = (props) => {
     return (
         <TouchableOpacity
-            style={{ backgroundColor: props.color, borderRadius: 10, width: props.width || 100, height: props.height || 30, alignItems: 'center', justifyContent: 'center', borderWidth: props.borderWidth || 0 }}
+            style={{ backgroundColor: props.color, borderRadius: 10, width: props.width || 100, height: props.height || 30, alignItems: 'center', justifyContent: 'center', borderWidth: props.borderWidth || 0, paddingHorizontal: props.paddingHorizontal || 0 }}
             onPress={props.onPress}
         >
             <Text style={{ fontSize: props.fontSize || 24, fontWeight: 'bold', color: props.txt_color || '#000' }}>{props.text}</Text>
@@ -204,18 +205,22 @@ const screen_admin = ({ navigation }) => {
     const [img, setImg] = useState('');
     const [text, setText] = useState('');
     const [list, setList] = useState([]);
+    const [orders, setOrders] = useState([]);
 
     const load_products = async () => {
         const prods = (await req('products', {})).data;
         setList(prods);
     }
 
+    const load_orders = async () => {
+        const orders = (await req('orders', {})).data.reverse();
+        setOrders(orders);
+    }
+
     useEffect(() => {
-        if (globals.list != undefined)
-            return setList(globals.list);
         (async () => {
-            const prods = (await req('products', {})).data;
-            setList(prods);
+            await load_orders();
+            await load_products();
         })();
     }, []);
 
@@ -285,6 +290,41 @@ const screen_admin = ({ navigation }) => {
         )
     }
 
+    const set_order_status = async (id, new_status) => {
+        const res = await req('update_order', {
+            id: id,
+            update: {
+                status: new_status
+            }
+        })
+        await load_orders();
+    }
+
+    const render_order = ({ item }) => {
+        const order = item.order;
+        const status = item.status;
+        let color = status == 'paid' ? '#3c3' : '#000';
+        color = status == 'cancelled' ? '#c33' : color;
+        color = status == 'shipped' ? '#fcba03' : color;
+        return (
+            <View style={{ width: '100%', alignItems: 'center' }}>
+                <View style={{ alignItems: 'center', width: '80%', borderWidth: 3, borderRadius: 10, marginVertical: 3, paddingTop: 10 }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold' }}>User: {item.user.name}</Text>
+                    <Image source={{ uri: order.img }} style={{ width: '30%', aspectRatio: 1, borderRadius: 10 }} />
+                    <Text style={{ fontSize: 18, fontWeight: 'bold' }}>{order.title}</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold' }}>${order.price}</Text>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: color }}>{status.toUpperCase()}</Text>
+                    <View style={{ flexDirection: 'row', flex: 1, justifyContent: 'space-around', gap: 3 }}>
+                        {status != 'paid' && (<Button text='PAID' height={30} borderWidth={3} width='auto' onPress={() => { set_order_status(item._id, 'paid') }} fontSize={18} paddingHorizontal={3} />)}
+                        {status != 'cancelled' && (<Button text='CANCELLED' height={30} borderWidth={3} width='auto' onPress={() => { set_order_status(item._id, 'cancelled') }} fontSize={18} paddingHorizontal={3} />)}
+                        {status != 'shipped' && (<Button text='SHIPPED' height={30} borderWidth={3} width='auto' onPress={() => { set_order_status(item._id, 'shipped') }} fontSize={18} paddingHorizontal={3} />)}
+                        {status != 'pending' && (<Button text='PENDING' height={30} borderWidth={3} width='auto' onPress={() => { set_order_status(item._id, 'pending') }} fontSize={18} paddingHorizontal={3} />)}
+                    </View>
+                </View>
+            </View>
+        )
+    }
+
     return (
         <View style={{ ...styles.container, justifyContent: 'flex-start' }}>
 
@@ -300,19 +340,28 @@ const screen_admin = ({ navigation }) => {
                 <Button text='Log out' height='90%' borderWidth={3} width={100} onPress={() => { log_out(navigation) }} />
             </View>
 
-            <View style={{ flex: 1, flexDirection: 'row', width: '95%', gap: 10 }}>
-                <View style={{ marginTop: 10, borderWidth: 3, borderRadius: 10, width: '70%', height: '95%', alignItems: 'center', gap: 20 }} >
+            <View style={{ flex: 1, flexDirection: 'row', width: '95%', gap: 3 }}>
+                <View style={{ marginTop: 10, borderWidth: 3, borderRadius: 10, width: '30%', height: '95%', alignItems: 'center' }} >
+                    <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Orders:</Text>
+                    <FlatList
+                        style={{ flex: 1, alignSelf: 'stretch', justifyItems: 'start' }}
+                        data={orders}
+                        keyExtractor={(item) => uuidv4()}
+                        renderItem={render_order}
+                    />
+                </View>
+                <View style={{ marginTop: 10, borderWidth: 3, borderRadius: 10, flex: 1, height: '95%', alignItems: 'center', gap: 20 }} >
                     <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Products:</Text>
                     <FlatList
                         style={{ flex: 1, alignSelf: 'stretch', justifyItems: 'center' }}
                         contentContainerStyle={styles.centeredList}
                         data={list}
                         keyExtractor={(item) => uuidv4()}
-                        numColumns={4}
+                        numColumns={2}
                         renderItem={render_product}
                     />
                 </View>
-                <View style={{ marginTop: 10, borderWidth: 3, borderRadius: 10, flex: 1, height: '95%', alignItems: 'center', gap: 10 }} >
+                <View style={{ marginTop: 10, borderWidth: 3, borderRadius: 10, width: '30%', height: '95%', alignItems: 'center', gap: 10 }} >
                     <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Add product:</Text>
                     <TextInput
                         style={{ borderRadius: 10, borderWidth: 3, width: '95%', height: 50, fontSize: 24, fontWeight: 'light', paddingLeft: 30, borderStyle: 'dashed' }}
@@ -415,6 +464,7 @@ const screen_home = ({ navigation }) => {
 
     const render_order = ({ item }) => {
         const order = item.order;
+        const status = item.status;
         if (item.status == 'pending')
             return (
                 <View style={{ width: '100%', alignItems: 'center' }}>
@@ -429,13 +479,16 @@ const screen_home = ({ navigation }) => {
                     </View>
                 </View>
             )
+        let color = status == 'paid' ? '#3c3' : '#000';
+        color = status == 'cancelled' ? '#c33' : color;
+        color = status == 'shipped' ? '#fcba03' : color;
         return (
             <View style={{ width: '100%', alignItems: 'center' }}>
                 <View style={{ alignItems: 'center', width: '80%', borderWidth: 3, borderRadius: 10, marginVertical: 3, paddingTop: 10 }}>
                     <Image source={{ uri: order.img }} style={{ width: '30%', aspectRatio: 1, borderRadius: 10 }} />
                     <Text style={{ fontSize: 18, fontWeight: 'bold' }}>{order.title}</Text>
                     <Text style={{ fontSize: 18, fontWeight: 'bold' }}>${order.price}</Text>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: item.status == 'paid' ? '#3c3' : '#c33' }}>{item.status.toUpperCase()}</Text>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: color }}>{item.status.toUpperCase()}</Text>
                 </View>
             </View>
         )
